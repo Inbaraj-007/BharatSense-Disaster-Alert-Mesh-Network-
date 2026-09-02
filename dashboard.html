@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>BharatSense</title>
+  <link rel="stylesheet"
+    href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script
+    src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <style>
+    *    { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:Arial; background:#0a0e1a; color:#fff; }
+    .header {
+      background:#ff6b2b; padding:14px 24px;
+      font-size:20px; font-weight:bold;
+    }
+    .grid {
+      display:grid; grid-template-columns:1fr 1fr;
+      gap:16px; padding:16px;
+    }
+    #map { height:400px; border-radius:12px; }
+    .nodes { display:flex; flex-direction:column; gap:12px; }
+    .card {
+      background:#141e35; border-radius:12px;
+      padding:16px; border-left:4px solid #00c9b1;
+    }
+    .card.alert {
+      border-left-color:#ff4757;
+      animation:pulse 1s infinite;
+    }
+    @keyframes pulse {
+      0%,100%{opacity:1} 50%{opacity:0.7}
+    }
+    .name  { font-size:17px; font-weight:bold; }
+    .ok    { color:#00c9b1; }
+    .danger{ color:#ff4757; font-weight:bold; }
+    .stats {
+      display:flex; gap:14px;
+      margin-top:8px; font-size:12px; color:#c8d6e5;
+    }
+    #clock { float:right; font-size:13px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  BharatSense — Live Map
+  <span id="clock"></span>
+</div>
+
+<div class="grid">
+  <div id="map"></div>
+  <div class="nodes" id="nodes">
+    <p style="color:#666">Waiting for nodes...</p>
+  </div>
+</div>
+
+<script>
+const map = L.map('map').setView([11.0168, 76.9558], 13);
+L.tileLayer(
+  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+).addTo(map);
+
+const markers = {};
+const SERVER  = 'http://localhost:5000';
+
+function refresh() {
+  fetch(SERVER + '/status')
+    .then(r => r.json())
+    .then(data => {
+      const box = document.getElementById('nodes');
+      box.innerHTML = '';
+
+      Object.values(data).forEach(n => {
+        const isAlert = n.alert;
+
+        // Map marker
+        if (markers[n.node]) map.removeLayer(markers[n.node]);
+        const icon = L.divIcon({
+          className: '',
+          html: `<div style="
+            width:18px;height:18px;border-radius:50%;
+            background:${isAlert?'#ff4757':'#00c9b1'};
+            border:3px solid white"></div>`
+        });
+        markers[n.node] = L.marker([n.lat, n.lng], {icon})
+          .addTo(map)
+          .bindPopup(`<b>${n.node}</b><br>
+            Soil:${n.soil}%<br>
+            Water:${n.water}cm<br>
+            ${isAlert?'🔴 DANGER':'🟢 OK'}`);
+
+        // Card
+        const card = document.createElement('div');
+        card.className = 'card' + (isAlert ? ' alert' : '');
+        card.innerHTML = `
+          <div class="name">${n.node}
+            ${n.type==='real'
+              ? '<span style="font-size:11px;color:#ff6b2b">
+                  ● REAL ESP32</span>'
+              : '<span style="font-size:11px;color:#7a8ba5">
+                  ● virtual</span>'}
+          </div>
+          <div class="${isAlert?'danger':'ok'}">
+            ${isAlert ? '🔴 DANGER ALERT!' : '🟢 All clear'}
+          </div>
+          <div class="stats">
+            <span>💧 Soil: ${n.soil}%</span>
+            <span>🌊 Water: ${n.water}cm</span>
+            <span>📳 Vibr: ${n.vibr}g</span>
+            <span>🕐 ${n.time}</span>
+          </div>`;
+        box.appendChild(card);
+      });
+    }).catch(() => {});
+}
+
+setInterval(() => {
+  document.getElementById('clock').textContent =
+    new Date().toLocaleTimeString();
+}, 1000);
+
+setInterval(refresh, 3000);
+refresh();
+</script>
+</body>
+</html>s
